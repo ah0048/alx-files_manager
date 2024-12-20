@@ -1,18 +1,20 @@
-import redisClient from '../utils/redis';
-import dbClient from '../utils/db';
+const redisClient = require('../utils/redis');
+const dbClient = require('../utils/db');
 
-export function getStatus(req, res) {
+function getStatus(req, res) {
   const status = {
     redis: redisClient.isAlive(),
     db: dbClient.isAlive(),
   };
-  res.send(JSON.stringify(status));
+  res.status(200).json(status);
 }
 
-export async function getStats(req, res) {
+async function getStats(req, res) {
   const stats = {
     users: await dbClient.nbUsers(),
     files: await dbClient.nbFiles(),
   };
-  res.send(JSON.stringify(stats));
+  res.status(200).json(stats);
 }
+
+module.exports = { getStatus, getStats };
