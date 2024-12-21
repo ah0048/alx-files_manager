@@ -33,7 +33,9 @@ async function postUpload(req, res) {
   if (!type || !['folder', 'file', 'image'].includes(type.toLowerCase())) {
     return res.status(400).json({ error: 'Missing type' });
   }
-
+  if (!data && type.toLowerCase() != 'folder') {
+    return res.status(400).json({ error: 'Missing data' });
+  }
   const filesCollection = dbClient.db.collection('files');
   let parentFolder = null;
 
@@ -47,12 +49,12 @@ async function postUpload(req, res) {
     }
   }
 
-  if (type === 'folder') {
+  if (type.toLowerCase() === 'folder') {
     // Create folder document
     const newFolder = {
       userId: userID,
       name,
-      type,
+      type: type.toLowerCase(),
       isPublic,
       parentId: parentId || '0',
     };
@@ -77,7 +79,7 @@ async function postUpload(req, res) {
     const newFile = {
       userId: userID,
       name,
-      type,
+      type: type.toLowerCase(),
       isPublic,
       parentId: parentId || '0',
       localPath: filePath,
