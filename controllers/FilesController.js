@@ -33,7 +33,7 @@ async function postUpload(req, res) {
   if (!type || !['folder', 'file', 'image'].includes(type.toLowerCase())) {
     return res.status(400).json({ error: 'Missing type' });
   }
-  if (!data && type.toLowerCase() != 'folder') {
+  if (!data && type.toLowerCase() !== 'folder') {
     return res.status(400).json({ error: 'Missing data' });
   }
   const filesCollection = dbClient.db.collection('files');
@@ -92,4 +92,87 @@ async function postUpload(req, res) {
     return res.status(500).json({ error: 'Unable to save file' });
   }
 }
-module.exports = postUpload;
+
+async function getShow(req, res) {
+  const token = req.headers['x-token'];
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const userID = await redisClient.get(`auth_${token}`);
+  if (!userID) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const usersCollection = dbClient.db.collection('users');
+  const existingUser = await usersCollection.findOne({ _id: new ObjectId(userID) });
+  if (!existingUser) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const fileId = req.params.id;
+  const file = await dbClient.db.collection('files').findOne({
+    _id: new ObjectId(fileId),
+    userId: userID,
+  });
+  if (!file) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  return res.status(200).json({ ...file });
+}
+
+async function getIndex(req, res) {
+  const token = req.headers['x-token'];
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const userID = await redisClient.get(`auth_${token}`);
+  if (!userID) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const usersCollection = dbClient.db.collection('users');
+  const existingUser = await usersCollection.findOne({ _id: new ObjectId(userID) });
+  if (!existingUser) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { parentId } = req.query;
+  const page = req.query.page || 0;
+  const limit = 20;
+  if (!parentId) {
+    const files = await dbClient.db.collection('files').aggregate([
+      // Match documents with the given id
+      { $match: { userId: userID } },
+
+      // Sort by `createdAt` in descending order
+      { $sort: { createdAt: -1 } },
+
+      // Skip documents for previous pages
+      { $skip: page * limit },
+
+      // Limit the results to `limit` items
+      { $limit: limit },
+    ]).toArray();
+    return res.status(200).json(files);
+  }
+  const files = await dbClient.db.collection('files').aggregate([
+    // Match documents with the given id
+    {
+      $match: {
+        userId: userID,
+        parentId,
+      },
+    },
+
+    // Sort by `createdAt` in descending order
+    { $sort: { createdAt: -1 } },
+
+    // Skip documents for previous pages
+    { $skip: page * limit },
+
+    // Limit the results to `limit` items
+    { $limit: limit },
+  ]).toArray();
+  return res.status(200).json(files);
+}
+module.exports = { postUpload, getShow, getIndex };
